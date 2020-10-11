@@ -6,7 +6,6 @@
 #include<limits.h>
 #include<getopt.h>
 #include<string.h> 
-#define LONG_NUMBER 64
 
 
 typedef struct{
@@ -21,59 +20,88 @@ typedef struct{
 
 long hits, misses, evictions, dirty_bytes, dirty_evictions;
 
-long findSet(long address, long s, long b)
-//Use bit manipulations to locate the set (row) we want to search on
-//in the cache. The output of this function is the setIndex.
+long findSet(long address, long s, long b) 
 {
+    //Use bit manipulations to locate the set (row) we want to search on
+    //in the cache.
     long mask = (1 << s) - 1;
     long base = address >> b;
     return base & mask;
 }
 
-long getTag(long address, long s, long b)
-//Use bit manipulations to extract the tag bits from the address.
-//We will use this to determine pinpoint the block in the target set (row)
+void findEvictions(cacheLine **myCache, long addressSet, long E, long operation)
 {
-    return address >> (s+b);
-}
-
-long findEvictions(cacheLine **myCache, long addressSet, long E)
-{
+    //If we need an eviction, find the line that we need to evict and set its 
+    //validBit to 0. If the line was dirty, increment dirty_evictions.
+    cacheLine* minLine;
     long minCounter = myCache[addressSet][0]->lruCounter;
-    long minLine = 0;
+    long minLineIndex = 0;
     for (int j = 0; j < E; j++)
     {
         long currentCounter = myCache[addressSet][j]->lruCounter;
         if (currentCounter < minCounter)
         {
             minCounter = currentCounter;
-            minLine = j;
+            minLineIndex = j;
         }
     }
-    return minLine;
+    minLine = myCache[addressSet][minLineIndex];
+    minLine->validBit = 0;
+    if (minLine->dirtyBit == 1)
+    {
+        dirty_evictions += 1;
+    }
+    return;
 }
 
-void getHit (cacheLine* current, long totalAccesses)
-//Update the time of the line that was just hit
+
+void missAndEvict(cacheLine **myCache, long addressSet, long E, long operation)
 {
-    current->lruCounter = totalAccesses;
+    //determine if an eviction is needed when the access is already a miss; if 
+    //so, call findEvictions to handle the eviction
+    long validLines = 0;
+    for (int j = 0 ; j < E; j ++)
+    {
+        if (myCache[addressSet][j]->validBit == 1)
+        {
+            validLines += 1;
+        }
+    }
+    if (validLines < E)
+    {
+        return;
+    }
+    evictions += 1;
+    findEvictions(myCache, addressSet, E, operation);
+    return;
 }
 
-void loadAndStore(long address, long s, long b, long E, long 
-totalAccesses)
+void loadAndStore(cacheLine **myCache, long address, long s, long b, long E, long 
+totalAccesses, long operation)
 {
+    //"heavy lifting", determine if it is a hit or a miss. If it is a miss, call
+    //a series of functions to handle evictions and dirty bytes.
     long addressSet = findSet(address, s, b);
-    long addressTag = getTag(address, s, b);
+    long addressTag = address >> (s+b);
     for (int j = 0; j < E; j ++)
     {
         cacheLine* current = myCache[addressSet][j];
         if ((current->validBit == 1) && (current->tagBits = addressTag))
         {
             hits += 1;
-            getHit(current, totalAccesses);
+            current->lruCounter = totalAccesses;
+            if (operation == 1)
+            {
+                dirty_bytes += 1;
+            }
         }
     }
     misses += 1;
+    missAndEvict(myCache, addressSet, E, operation);
+    if (operation == 1)
+    {
+        updateDirty();
+    }
 }
 
 int main(int argc, char* argv[])
@@ -152,11 +180,12 @@ int main(int argc, char* argv[])
         totalAccesses += 1;
         switch(type)
         {
+            //if it is a load, type is 0; if it is a store, type is 1
             case 'L':
-                loadAndStore(address, s, b, E, totalAccesses);
+                loadAndStore(myCache, address, s, b, E, totalAccesses, 0);
                 break;
             case 'S':
-                loadAndStore(address, s, b, E, totalAccesses);
+                loadAndStore(myCache, address, s, b, E, totalAccesses, 1);
                 break;
         }
     }
