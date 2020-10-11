@@ -11,19 +11,15 @@
 
 typedef struct{
     long validBit;
+    long dirtyBit;
     long tagBits;
     long lruCounter;
-}line_struct;
+} cacheLine;
 
-line_struct **myCache = NULL;
 //myCache is a 2D matrix where each row represents a set and each column
 //in a row represents a line, set to NULL first
 
-char traceFile[1000];
-char buffer[1000];
-
-long t, s, b, S, E, help_mode, verbose_mode, hits, misses, evictions;
-long dirty_bytes, dirty_evictions;
+long hits, misses, evictions, dirty_bytes, dirty_evictions;
 
 long findSet(long address, long s, long b)
 //Use bit manipulations to locate the set (row) we want to search on
@@ -34,39 +30,64 @@ long findSet(long address, long s, long b)
     return base & mask;
 }
 
-long getTag(long address, long t, long s, long b)
+long getTag(long address, long s, long b)
 //Use bit manipulations to extract the tag bits from the address.
 //We will use this to determine pinpoint the block in the target set (row)
 {
-    long base = address >> (b + s);
-    long mask = (1 << t) - 1;
-    return base & mask;
+    return address >> (s+b);
 }
 
-void loadAndStore(long address, long t, long s, long b, long E)
+long findEvictions(cacheLine **myCache, long addressSet, long E)
+{
+    long minCounter = myCache[addressSet][0]->lruCounter;
+    long minLine = 0;
+    for (int j = 0; j < E; j++)
+    {
+        long currentCounter = myCache[addressSet][j]->lruCounter;
+        if (currentCounter < minCounter)
+        {
+            minCounter = currentCounter;
+            minLine = j;
+        }
+    }
+    return minLine;
+}
+
+void getHit (cacheLine* current, long totalAccesses)
+//Update the time of the line that was just hit
+{
+    current->lruCounter = totalAccesses;
+}
+
+void loadAndStore(long address, long s, long b, long E, long 
+totalAccesses)
 {
     long addressSet = findSet(address, s, b);
-    long addressTag = getTag(address, t, s, b);
+    long addressTag = getTag(address, s, b);
     for (int j = 0; j < E; j ++)
     {
-        line_struct* current = myCache[addressSet][j];
-        if (current->validBit == 1)
-            {
-                if (current->tagBits == addressTag)
-                {
-                    hits += 1;
-                }
-            }
-        misses += 1;
+        cacheLine* current = myCache[addressSet][j];
+        if ((current->validBit == 1) && (current->tagBits = addressTag))
+        {
+            hits += 1;
+            getHit(current, totalAccesses);
+        }
     }
+    misses += 1;
 }
 
 int main(int argc, char* argv[])
 {
-    long opt;
-    long temp;
-    char type;
+    long opt, help_mode, verbose_mode, s, E, b, S;
+    char buffer[1000];
+    char* traceFile; //the current trace file that we are processing
+    char type;   //load or store (L/S)
     long address;
+    long size;
+    int i, j;
+    FILE* trace;
+    cacheLine **myCache;
+    csim_stats_t* result;
     while ((opt = (getopt(argc, argv, "hvs:E:b:t:"))) != -1)
     {
         switch(opt)
@@ -81,8 +102,11 @@ int main(int argc, char* argv[])
                             break;
             case 'b':b = atoi(optarg);
                             break;
-            case 't':strcpy(traceFile, optarg);
+            case 't':traceFile = (char *)optarg;
                             break;
+            default:
+                    printf("invalid inputs\n");
+                    break;
         }
     }
 	if (help_mode == 1)
@@ -90,38 +114,50 @@ int main(int argc, char* argv[])
 		system("cat help_info");//"call help to the system"
 		exit(0);
 	}
-    FILE* trace = fopen(traceFile,"r");
-    if (trace == NULL)
+    if (verbose_mode == 1)
     {
-        fprintf(stderr,"invalid file!\n");
-        exit(-1);
+        printf("information\n");
     }
     S = 1 << s;
     //there are a number of S sets
-    myCache = (line_struct**) malloc(sizeof(line_struct*) * S);
-    for(int i = 0; i < S; i++)
+    myCache = (cacheLine **)malloc(sizeof(cacheLine*) * S);
+    if (myCache == NULL)
     {
-        myCache[i] = (line_struct*)malloc(sizeof(line_struct) * E);
+        exit(0);
+    }
+    for (i = 0; i < S; i++)
+    {
+        myCache[i] = (cacheLine*)malloc(sizeof(cacheLine) * E);
         //i is the row-index into myCache, each row represents a set,
         //and a set is made of E lines
-    }
-    for (int i = 0; i < S; i++)
-    {
-        for (int j = 0; j < E; j++)
+        for (j = 0; j < E; j++)
         {
             myCache[i][j]->validBit = 0;
-            //the validBit of all lines are 0 at first, "cold misses"
+            myCache[i][j]->dirtyBit = 0;
+            myCache[i][j]->tagBits = 0;
+            myCache[i][j]->lruCounter = 0;                                                                                        
         }
     }
+    trace = fopen(traceFile,"r");
+    if (trace == NULL)
+    {
+        printf("invalid trace file\n");
+        exit(0);
+    }
+    long totalAccesses = 0;
     while(fgets(buffer,1000,trace))  //get a whole line, cite C library
     {   //parse the trace files and get the address in hex to pass
         //on to loadAndStore()
-        sscanf(buffer," %c, %ld, %ld", &type, &address, &temp);
+        sscanf(buffer," %c, %ld, %ld", &type, &address, &size);
+        totalAccesses += 1;
         switch(type)
         {
-            case 'L':loadAndStore(address, t, s, b, E);
-            case 'S':loadAndStore(address, t, s, b, E);
-                                    break;
+            case 'L':
+                loadAndStore(address, s, b, E, totalAccesses);
+                break;
+            case 'S':
+                loadAndStore(address, s, b, E, totalAccesses);
+                break;
         }
     }
     for (int i = 0; i < S; i++)
@@ -130,5 +166,17 @@ int main(int argc, char* argv[])
     }  
     free(myCache);
     fclose(trace);
+    result = (csim_stats_t*)malloc(sizeof(csim_stats_t));
+    if (result == NULL)
+    {
+        exit(0);
+    }
+    result->hits = hits;
+    result->misses = misses;
+    result->evictions = evictions;
+    result->dirty_bytes = dirty_bytes;
+    result->dirty_evictions = dirty_evictions;
+    printSummary(result);
+    free(result);
     return 0;
 }
