@@ -68,8 +68,6 @@ long isHit(cacheSet **myCache, long address, long s, long b, long E,
     long addressSet = findSet(address, s, b);
     long addressTag = address >> (s + b);
     int j;
-    printf("lines's tag: %ld \n", myCache[addressSet]->lines[0]->tagBits);
-    printf("address tag: %ld \n", addressTag);
     for (j = 0; j < E; j++) {
         cacheLine *current = myCache[addressSet]->lines[j];
         if ((current->validBit == 1) && (current->tagBits == addressTag)) {
@@ -109,23 +107,26 @@ void normalMiss(cacheSet **myCache, long address, long s, long b, long E,
     // update the next empty line in the set
     myCache[addressSet]->lines[nextEmptyIndex]->validBit = 1;
     myCache[addressSet]->lines[nextEmptyIndex]->tagBits = addressTag;
-    // printf("newLine->tagBits,%ld\n", newLine->tagBits);
     myCache[addressSet]->lines[nextEmptyIndex]->lruCounter = totalAccesses;
+    myCache[addressSet]->lines[nextEmptyIndex]->dirtyBit = 0;
     if (operation == 1) {
         myCache[addressSet]->lines[nextEmptyIndex]->dirtyBit = 1;
     }
-    // printf("finished normal miss\n");
     return;
 }
 
 void doEviction(cacheSet **myCache, long address, long s, long b, long E,
                 long totalAccesses, long operation) {
+    //Perform evictions if we need an eviction
+    //Find the line to be evicted by finding the line in the set with least 
+    //lruCounter. Update each field of that line.
     int j;
     long addressSet = findSet(address, s, b);
     long addressTag = address >> (s + b);
     int lruIndex = 0;
     long minCounter = myCache[addressSet]->lines[0]->lruCounter;
     long currentCounter = 0;
+    long B = 1 << b;
     for (j = 0; j < E; j++) {
         currentCounter = myCache[addressSet]->lines[j]->lruCounter;
         if (currentCounter < minCounter) {
@@ -134,16 +135,13 @@ void doEviction(cacheSet **myCache, long address, long s, long b, long E,
         }
     }
     if (myCache[addressSet]->lines[lruIndex]->dirtyBit == 1) {
-        dirty_evictions += 1;
+        dirty_evictions += B;
     }
     myCache[addressSet]->lines[lruIndex]->dirtyBit = 0;
     if (operation == 1) {
         myCache[addressSet]->lines[lruIndex]->dirtyBit = 1;
     }
     myCache[addressSet]->lines[lruIndex]->tagBits = addressTag;
-    printf("addressTag, %ld \n", addressTag);
-    printf("doEvctions--line's tagBits:,%ld \n",
-           myCache[addressSet]->lines[lruIndex]->tagBits);
     return;
 }
 
@@ -169,12 +167,13 @@ void loadAndStore(cacheSet **myCache, long address, long s, long b, long E,
 }
 
 int main(int argc, char *argv[]) {
-    long opt, help_mode, verbose_mode, s, E, b, S;
+    long opt, help_mode, verbose_mode, s, E, b, S, B;
     verbose_mode = 0;
     help_mode = 0;
     b = 0;
     E = 0;
     s = 0;
+    B = 0;
     char *traceFile; // the current trace file that we are processing
     traceFile = NULL;
     char type; // load or store (L/S)
@@ -259,10 +258,11 @@ int main(int argc, char *argv[]) {
         }
         printf("\n");
     }
+    B = 1 << b;
     for (int i = 0; i < S; i++) {
         for (int j = 0; j < E; j++) {
             if (myCache[i]->lines[j]->dirtyBit == 1)
-                dirty_bytes += 1;
+                dirty_bytes += B;
         }
     }
     for (int i = 0; i < S; i++) {
