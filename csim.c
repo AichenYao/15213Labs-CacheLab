@@ -73,7 +73,9 @@ long operation, long totalAccesses)
     for (j = 0; j < E; j++) 
     {
         cacheLine *current = myCache[addressSet]->lines[j];
-        if ((current->validBit == 1) && (current->tagBits = addressTag))
+        printf("current->tagBits,%ld\n", current->tagBits);
+        printf("addressTag,%ld\n", addressTag);
+        if ((current->validBit == 1) && (current->tagBits == addressTag))
         {
             if (operation == 1)
             {
@@ -107,7 +109,11 @@ void normalMiss(cacheSet **myCache, long address, long s, long b, long E,
 long totalAccesses, long operation)
 {
     //handle a miss that does not require an eviction
-    cacheLine* newLine;
+    cacheLine* newLine = (cacheLine*)malloc(sizeof(cacheLine));
+    if (newLine ==  NULL)
+    {
+        exit(0);
+    }
     long addressSet = findSet(address, s, b);
     int j;
     for (j = 0; j < E; j ++)
@@ -135,7 +141,7 @@ long totalAccesses, long operation)
     cacheLine *minLine = myCache[addressSet]->lines[0];
     long minCounter = myCache[addressSet]->lines[0]->lruCounter;
     long currentCounter;
-    for (int j = 0; j < E; j++) 
+    for (j = 0; j < E; j++) 
     {
         currentCounter = myCache[addressSet]->lines[j]->lruCounter;
         if (currentCounter < minCounter) {
@@ -183,11 +189,15 @@ long totalAccesses, long operation)
 
 int main(int argc, char *argv[]) {
     long opt, help_mode, verbose_mode, s, E, b, S;
-    char buffer[1000];
+    help_mode = 0;
+    b = 0;
+    E = 0;
+    s = 0;
     char *traceFile; // the current trace file that we are processing
+    traceFile = NULL;
     char type;       // load or store (L/S)
     long address;
-    long size;
+    int size;
     FILE *trace;
     cacheSet **myCache;
     csim_stats_t *result;
@@ -217,21 +227,23 @@ int main(int argc, char *argv[]) {
         }
     }
     if (help_mode == 1) {
-        system("cat help_info"); //"call help to the system"
+        printf("help\n"); //"call help to the system"
         exit(0);
-    }
-    if (verbose_mode == 1) {
-        printf("information\n");
     }
     S = 1 << s;
     // there are a number of S sets
     myCache = buildCache(s, b, E, S);
     long totalAccesses = 0;
     trace = fopen(traceFile, "r");
-    while (fgets(buffer, 1000, trace)) // get a whole line, cite C library
+    while (fscanf(trace, "%c %lx, %d", &type, &address, &size ) > 0) 
+    // get a whole line, cite C library
     { // parse the trace files and get the address in hex to pass
         // on to loadAndStore()
-        sscanf(buffer, " %c, %ld, %ld", &type, &address, &size);
+        long oldHits = hits;
+        long oldMisses = misses;
+        long olddirty_bytes = dirty_bytes;
+        long oldevictions = evictions;
+        long oldDirtyEvictions = dirty_evictions;
         totalAccesses += 1;
         switch (type) {
         // if it is a load, type is 0; if it is a store, type is 1
@@ -241,6 +253,30 @@ int main(int argc, char *argv[]) {
         case 'S':
             loadAndStore(myCache, address, s, b, E, totalAccesses,1);
             break;
+        }
+        if (verbose_mode)
+        {
+            printf("%c %lx, %d ", type, address, size);
+            if (oldHits != hits)
+            {
+                printf("hit ");
+            }
+            if (oldMisses != misses)
+            {
+                printf("miss ");
+            }
+            if (olddirty_bytes != dirty_bytes)
+            {
+                printf("hit ");
+            }
+            if (oldevictions != evictions)
+            {
+                printf( "eviction ");
+            }
+            if (oldDirtyEvictions != dirty_evictions)
+            {
+                printf("dirty_eviction ");
+            }
         }
     }
     for (int i = 0; i < S; i++)
