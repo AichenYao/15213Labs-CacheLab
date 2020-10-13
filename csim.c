@@ -61,133 +61,107 @@ long findSet(long address, long s, long b) {
     return base & mask;
 }
 
-
-long isHit(cacheSet **myCache, long address, long s, long b, long E, 
-long operation, long totalAccesses)
-{
-    //judge if the given address would be a hit, return 1 if so.
-    //if it is a set, then change the matching lines' dirtyBit to 1
+long isHit(cacheSet **myCache, long address, long s, long b, long E,
+           long operation, long totalAccesses) {
+    // judge if the given address would be a hit, return 1 if so.
+    // if it is a set, then change the matching lines' dirtyBit to 1
     long addressSet = findSet(address, s, b);
     long addressTag = address >> (s + b);
     int j;
-    for (j = 0; j < E; j++) 
-    {
+    printf("lines's tag: %ld \n", myCache[addressSet]->lines[0]->tagBits);
+    printf("address tag: %ld \n", addressTag);
+    for (j = 0; j < E; j++) {
         cacheLine *current = myCache[addressSet]->lines[j];
-        printf("current->tagBits,%ld\n", current->tagBits);
-        printf("addressTag,%ld\n", addressTag);
-        if ((current->validBit == 1) && (current->tagBits == addressTag))
-        {
-            if (operation == 1)
-            {
+        if ((current->validBit == 1) && (current->tagBits == addressTag)) {
+            current->lruCounter = totalAccesses;
+            if (operation == 1) {
                 current->dirtyBit = 1;
-                current->lruCounter = totalAccesses;
             }
             return 1;
-        } 
+        }
     }
     return 0;
 }
 
-long isEvict(cacheSet **myCache, long address, long s, long b, long E)
-{
-    //determine if this miss needs an eviction; if all lines are valid (full), 
-    //then it needs an eviction
+long isEvict(cacheSet **myCache, long address, long s, long b, long E) {
+    // determine if this miss needs an eviction; if all lines are valid (full),
+    // then it needs an eviction
     long addressSet = findSet(address, s, b);
     int j;
-    for (j = 0; j < E; j ++)
-    {
-        if (myCache[addressSet]->lines[j]->validBit == 0)
-        {
-            //return 0 if we found an empty block
-           return 0;
+    for (j = 0; j < E; j++) {
+        if (myCache[addressSet]->lines[j]->validBit == 0) {
+            // return 0 (no eviction needed) if we found an empty block
+            return 0;
         }
     }
     return 1;
 }
 
-void normalMiss(cacheSet **myCache, long address, long s, long b, long E, 
-long totalAccesses, long operation)
-{
-    //handle a miss that does not require an eviction
-    cacheLine* newLine = NULL;
+void normalMiss(cacheSet **myCache, long address, long s, long b, long E,
+                long totalAccesses, long operation) {
+    // handle a miss that does not require an eviction
     long addressSet = findSet(address, s, b);
-    int j;
-    for (j = 0; j < E; j ++)
-    {
-        if (myCache[addressSet]->lines[j]->validBit == 0)
-        { 
-            newLine = myCache[addressSet]->lines[j];
-        }
+    long addressTag = address >> (s + b);
+    long nextEmptyIndex = 0; // first empty line in the set to be filled
+    while ((myCache[addressSet]->lines[nextEmptyIndex]->validBit == 1)) {
+        nextEmptyIndex += 1;
     }
-    newLine->validBit = 1;
-    newLine->tagBits = address >> (s + b);
-    printf("newLine->tagBits,%ld\n", newLine->tagBits);
-    newLine->lruCounter = totalAccesses;
-    if (operation == 1)
-    {
-        newLine->dirtyBit = 1;
+    // update the next empty line in the set
+    myCache[addressSet]->lines[nextEmptyIndex]->validBit = 1;
+    myCache[addressSet]->lines[nextEmptyIndex]->tagBits = addressTag;
+    // printf("newLine->tagBits,%ld\n", newLine->tagBits);
+    myCache[addressSet]->lines[nextEmptyIndex]->lruCounter = totalAccesses;
+    if (operation == 1) {
+        myCache[addressSet]->lines[nextEmptyIndex]->dirtyBit = 1;
     }
     // printf("finished normal miss\n");
     return;
 }
 
 void doEviction(cacheSet **myCache, long address, long s, long b, long E,
-long totalAccesses, long operation)
-{
+                long totalAccesses, long operation) {
     int j;
     long addressSet = findSet(address, s, b);
+    long addressTag = address >> (s + b);
     int lruIndex = 0;
     long minCounter = myCache[addressSet]->lines[0]->lruCounter;
-    long currentCounter;
-    cacheLine* newLine = (cacheLine*) malloc(sizeof(cacheLine));
-    if (newLine == NULL)
-    {
-        exit(0);
-    }
-    for (j = 0; j < E; j++) 
-    {
+    long currentCounter = 0;
+    for (j = 0; j < E; j++) {
         currentCounter = myCache[addressSet]->lines[j]->lruCounter;
-        if (currentCounter < minCounter) 
-        {
+        if (currentCounter < minCounter) {
             minCounter = currentCounter;
             lruIndex = j;
         }
     }
-    if (myCache[addressSet]->lines[lruIndex]->dirtyBit == 1)
-    {
+    if (myCache[addressSet]->lines[lruIndex]->dirtyBit == 1) {
         dirty_evictions += 1;
     }
-    newLine->validBit = 1;
-    newLine->dirtyBit = 0;
-    if (operation == 1)
-    {
-        newLine->dirtyBit = 1;
+    myCache[addressSet]->lines[lruIndex]->dirtyBit = 0;
+    if (operation == 1) {
+        myCache[addressSet]->lines[lruIndex]->dirtyBit = 1;
     }
-    newLine->tagBits = address >> (s+b);
-    printf("newLine->tagBits,%ld\n", newLine->tagBits);
-    newLine->lruCounter = totalAccesses;
-    myCache[addressSet]->lines[lruIndex] = newLine;
+    myCache[addressSet]->lines[lruIndex]->tagBits = addressTag;
+    printf("addressTag, %ld \n", addressTag);
+    printf("doEvctions--line's tagBits:,%ld \n",
+           myCache[addressSet]->lines[lruIndex]->tagBits);
+    return;
 }
 
 void loadAndStore(cacheSet **myCache, long address, long s, long b, long E,
-long totalAccesses, long operation) 
-{
+                  long totalAccesses, long operation) {
     //"heavy lifting", determine if it is a hit or a miss. If it is a miss, call
     // a series of functions to handle evictions and dirty bytes.
-    if (isHit(myCache, address, s, b, E, operation, totalAccesses))
-    {
+    if (isHit(myCache, address, s, b, E, operation, totalAccesses)) {
         hits += 1;
         return;
     }
     misses += 1;
-    if (isEvict(myCache, address, s, b, E))
-    {
+    if (isEvict(myCache, address, s, b, E)) {
         evictions += 1;
-        doEviction(myCache, address, s, E, b, totalAccesses, operation);
+        doEviction(myCache, address, s, b, E, totalAccesses, operation);
         return;
     }
-    if (isEvict(myCache, address, s, b, E) == 0)
-    {
+    if (isEvict(myCache, address, s, b, E) == 0) {
         normalMiss(myCache, address, s, b, E, totalAccesses, operation);
         return;
     }
@@ -203,7 +177,7 @@ int main(int argc, char *argv[]) {
     s = 0;
     char *traceFile; // the current trace file that we are processing
     traceFile = NULL;
-    char type;       // load or store (L/S)
+    char type; // load or store (L/S)
     long address;
     int size;
     FILE *trace;
@@ -243,7 +217,7 @@ int main(int argc, char *argv[]) {
     myCache = buildCache(s, b, E, S);
     long totalAccesses = 0;
     trace = fopen(traceFile, "r");
-    while (fscanf(trace, "%c %lx, %d ", &type, &address, &size ) >= 0) 
+    while (fscanf(trace, "%c %lx, %d ", &type, &address, &size) >= 0)
     // get a whole line, cite C library
     { // parse the trace files and get the address in hex to pass
         // on to loadAndStore()
@@ -253,59 +227,46 @@ int main(int argc, char *argv[]) {
         long oldevictions = evictions;
         long oldDirtyEvictions = dirty_evictions;
         totalAccesses += 1;
-        // printf("before\n");
-        printf("%c %lx, %d", type, address, size);
-        // printf("after\n");
+        // printf("totalAccesses, %ld\n", totalAccesses);
+        printf("%c %lx, %d ", type, address, size);
         switch (type) {
         // if it is a load, type is 0; if it is a store, type is 1
         case 'L':
-            // printf("load\n");
-            loadAndStore(myCache, address, s, b, E, totalAccesses,0);
+            loadAndStore(myCache, address, s, b, E, totalAccesses, 0);
             break;
         case 'S':
-            // printf("store\n");
-            loadAndStore(myCache, address, s, b, E, totalAccesses,1);
+            loadAndStore(myCache, address, s, b, E, totalAccesses, 1);
             break;
         default:
-            // printf("default?\n");
             break;
         }
-        if (verbose_mode)
-        {
-            if (oldHits != hits)
-            {
+        if (verbose_mode) {
+            if (oldHits != hits) {
                 printf("hit ");
             }
-            if (oldMisses != misses)
-            {
+            if (oldMisses != misses) {
                 printf("miss ");
             }
-            if (olddirty_bytes != dirty_bytes)
-            {
+            if (olddirty_bytes != dirty_bytes) {
                 printf("hit ");
             }
-            if (oldevictions != evictions)
-            {
-                printf( "eviction ");
+            if (oldevictions != evictions) {
+                printf("eviction ");
             }
-            if (oldDirtyEvictions != dirty_evictions)
-            {
+            if (oldDirtyEvictions != dirty_evictions) {
                 printf("dirty_eviction ");
             }
         }
+        printf("\n");
     }
-    for (int i = 0; i < S; i++)
-    {
-        for (int j = 0; j < E; j++)
-        {
+    for (int i = 0; i < S; i++) {
+        for (int j = 0; j < E; j++) {
             if (myCache[i]->lines[j]->dirtyBit == 1)
                 dirty_bytes += 1;
         }
     }
-    for (int i = 0; i < S; i++)
-    {
-        for (int j = 0; j < E; j++)
-        {
+    for (int i = 0; i < S; i++) {
+        for (int j = 0; j < E; j++) {
             free(myCache[i]->lines[j]);
         }
         free(myCache[i]);
