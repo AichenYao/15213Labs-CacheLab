@@ -26,6 +26,8 @@ long hits, misses, evictions, dirty_bytes, dirty_evictions;
 cacheSet **buildCache(long s, long b, long E, long S) {
     int i;
     int j;
+    int tmp1;
+    int tmp2;
     cacheSet **myCache = (cacheSet **)malloc(sizeof(cacheSet *) * S);
     if (myCache == NULL) {
         exit(0);
@@ -33,15 +35,33 @@ cacheSet **buildCache(long s, long b, long E, long S) {
     for (i = 0; i < S; i++) {
         myCache[i] = (cacheSet *)malloc(sizeof(cacheSet));
         if (myCache[i] == NULL) {
+            for (tmp1 = 0; tmp1 < i; tmp1++) {
+                free(myCache[tmp1]);
+            }
+            free(myCache);
             exit(0);
         }
         myCache[i]->lines = (cacheLine **)malloc(sizeof(cacheLine *) * E);
         if (myCache[i]->lines == NULL) {
+            for (tmp1 = 0; tmp1 < i; tmp1++) {
+                free(myCache[tmp1]->lines);
+                free(myCache[tmp1]);
+            }
+            free(myCache[i]);
+            free(myCache);
             exit(0);
         }
         for (j = 0; j < E; j++) {
             myCache[i]->lines[j] = malloc(sizeof(cacheLine));
             if (myCache[i]->lines[j] == NULL) {
+                for (tmp1 = 0; tmp1 < i; tmp1++) {
+                    for (tmp2 = 0; tmp2 < E; tmp2++) {
+                        free(myCache[tmp1]->lines[tmp2]);
+                    }
+                    free(myCache[tmp1]->lines);
+                    free(myCache[tmp1]);
+                }
+                free(myCache);
                 exit(0);
             }
             myCache[i]->lines[j]->validBit = 0;
@@ -269,6 +289,7 @@ int main(int argc, char *argv[]) {
         for (int j = 0; j < E; j++) {
             free(myCache[i]->lines[j]);
         }
+        free(myCache[i]->lines);
         free(myCache[i]);
     }
     free(myCache);
