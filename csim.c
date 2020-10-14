@@ -117,9 +117,9 @@ void normalMiss(cacheSet **myCache, long address, long s, long b, long E,
 
 void doEviction(cacheSet **myCache, long address, long s, long b, long E,
                 long totalAccesses, long operation) {
-    //Perform evictions if we need an eviction
-    //Find the line to be evicted by finding the line in the set with least 
-    //lruCounter. Update each field of that line.
+    // Perform evictions if we need an eviction
+    // Find the line to be evicted by finding the line in the set with least
+    // lruCounter. Update each field of that line.
     int j;
     long addressSet = findSet(address, s, b);
     long addressTag = address >> (s + b);
