@@ -115,41 +115,27 @@ static void trans_tmp(size_t M, size_t N, const double A[N][M], double B[M][N],
     assert(is_transpose(M, N, A, B));
 }
 
- 
-static void trans_32_init(size_t M, size_t N, const double A[N][M], 
-double B[M][N], double tmp[TMPCOUNT])         
-{
-    assert(M = 32);
-    assert(N = 32);  
-    size_t i, j, tmp1, tmp2;
-    for (i = 0; i < N; i += 16) {
-        for (j = 0; j < M; j += 16) {
-            for (tmp1 = i; tmp1 < i + 16; tmp1++){
-                for (tmp2 = j; tmp2 < j + 16; tmp2++){
-                    B[tmp2][tmp1] = A[tmp1][tmp2];
+static void trans_32(size_t M, size_t N, const double A[N][M], double B[M][N],
+                     double tmp[TMPCOUNT]) {
+    assert(M == 32);
+    assert(N == 32);
+    size_t b = 8;
+    size_t tmpi, tmpj, i, j;
+    // inspired by the code from recitation 5 matrix multiplication
+    for (j = 0; j < M; j += b)
+        for (i = 0; i < N; i += b)
+            for (tmpi = i; tmpi < i + b; tmpi++)
+                for (tmpj = j; tmpj < j + b; tmpj++) {
+                    if (tmpi != tmpj) {
+                        B[tmpi][tmpj] = A[tmpj][tmpi];
+                    }
                 }
-            }
-        }
+    for (i = 0; i < M; i++) {
+        // Entries on the diagonal would cause a double eviction every time
+        // so we don't do that in the major loop, we handle it here.
+        B[i][i] = A[i][i];
     }
-    assert(is_transpose(M,N,A,B));
-}
-
-static void trans_32(size_t M, size_t N, const double A[N][M], 
-double B[M][N], double tmp[TMPCOUNT])         
-{
-    assert(M = 32);
-    assert(N = 32);  
-    size_t i, j, tmp1, tmp2;
-    for (i = 0; i < N; i += 16) {
-        for (j = 0; j < M; j += 16) {
-            for (tmp1 = i; tmp1 < i + 16; tmp1++){
-                for (tmp2 = j; tmp2 < j + 16; tmp2++){
-                    B[tmp2][tmp1] = A[tmp1][tmp2];
-                }
-            }
-        }
-    }
-    assert(is_transpose(M,N,A,B));
+    assert(is_transpose(M, N, A, B));
 }
 /**
  * @brief The solution transpose function that will be graded.
@@ -176,10 +162,6 @@ static void transpose_submit(size_t M, size_t N, const double A[N][M],
 void registerFunctions(void) {
     // Register the solution function. Do not modify this line!
     registerTransFunction(transpose_submit, SUBMIT_DESCRIPTION);
-
-    // Register any additional transpose functions
-    registerTransFunction(trans_32_init, "32x32 matrix transpose");
     registerTransFunction(trans_basic, "Basic transpose");
     registerTransFunction(trans_tmp, "Transpose using the temporary array");
-
 }
