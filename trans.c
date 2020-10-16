@@ -89,7 +89,6 @@ static void trans_basic(size_t M, size_t N, const double A[N][M],
             B[j][i] = A[i][j];
         }
     }
-
     assert(is_transpose(M, N, A, B));
 }
 
@@ -117,9 +116,35 @@ static void trans_tmp(size_t M, size_t N, const double A[N][M], double B[M][N],
 
 static void trans_32(size_t M, size_t N, const double A[N][M], double B[M][N],
                      double tmp[TMPCOUNT]) {
+                         //deal with 32*32 matrix transpose only
     assert(M == 32);
     assert(N == 32);
     size_t b = 8;
+    size_t tmpi, tmpj, i, j;
+    // inspired by the code from recitation 5 matrix multiplication
+    for (j = 0; j < M; j += b)
+        for (i = 0; i < N; i += b)
+            for (tmpi = i; tmpi < i + b; tmpi++)
+                for (tmpj = j; tmpj < j + b; tmpj++) {
+                    if (tmpi != tmpj) {
+                        B[tmpi][tmpj] = A[tmpj][tmpi];
+                    }
+                }
+    for (i = 0; i < M; i++) {
+        // Entries on the diagonal would cause a double eviction every time
+        // so we don't do that in the major loop, we handle it here.
+        B[i][i] = A[i][i];
+    }
+    assert(is_transpose(M, N, A, B));
+}
+
+
+static void trans_1024(size_t M, size_t N, const double A[N][M], double B[M][N],
+                     double tmp[TMPCOUNT]) {
+                         //deal with 32*32 matrix transpose only
+    assert(M == 32);
+    assert(N == 32);
+    size_t b = 4;
     size_t tmpi, tmpj, i, j;
     // inspired by the code from recitation 5 matrix multiplication
     for (j = 0; j < M; j += b)
@@ -147,6 +172,7 @@ static void trans_32(size_t M, size_t N, const double A[N][M], double B[M][N],
 static void transpose_submit(size_t M, size_t N, const double A[N][M],
                              double B[M][N], double tmp[TMPCOUNT]) {
     if ((M == 32) && (N == 32))
+    //call 32*32 helper
         trans_32(M, N, A, B, tmp);
     else
         trans_tmp(M, N, A, B, tmp);
