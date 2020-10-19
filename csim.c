@@ -18,12 +18,17 @@ typedef struct {
     cacheLine **lines;
 } cacheSet;
 
-// myCache is a 2D matrix where each row represents a set and each column
-// in a row represents a line, set to NULL first
+// myCache points to an array of cacheSets, which contains a field of array of
+// cacheLine structs
 
 long hits, misses, evictions, dirty_bytes, dirty_evictions;
+// update these throughout the code, and put them into the result struct in the
+// end
 
 cacheSet **buildCache(long s, long b, long E, long S) {
+    // Initialize myCache. Build cacheSets, pointers to lines, and lines (all
+    // fields start as 0). If any malloc fails, free all allocated memory and
+    // exit.
     int i;
     int j;
     int tmp1;
@@ -83,8 +88,8 @@ long findSet(long address, long s, long b) {
 
 long isHit(cacheSet **myCache, long address, long s, long b, long E,
            long operation, long totalAccesses) {
-    // judge if the given address would be a hit, return 1 if so.
-    // if it is a set, then change the matching lines' dirtyBit to 1
+    // Judge if the given address would be a hit, return 1 if so.
+    // if the operation was store, then change the matching lines' dirtyBit to 1
     long addressSet = findSet(address, s, b);
     long addressTag = address >> (s + b);
     int j;
@@ -117,7 +122,9 @@ long isEvict(cacheSet **myCache, long address, long s, long b, long E) {
 
 void normalMiss(cacheSet **myCache, long address, long s, long b, long E,
                 long totalAccesses, long operation) {
-    // handle a miss that does not require an eviction
+    // Handle a miss that does not require an eviction. Do not create a new line
+    // Update the validBit, addressTag, lruCounter of the line to be filled.
+    // If operation is a store, set its dirtyBit to 1.
     long addressSet = findSet(address, s, b);
     long addressTag = address >> (s + b);
     long nextEmptyIndex = 0; // first empty line in the set to be filled
@@ -139,7 +146,8 @@ void doEviction(cacheSet **myCache, long address, long s, long b, long E,
                 long totalAccesses, long operation) {
     // Perform evictions if we need an eviction
     // Find the line to be evicted by finding the line in the set with least
-    // lruCounter. Update each field of that line.
+    // lruCounter. Update each field of that line like what I did for a normal
+    // miss.
     int j;
     long addressSet = findSet(address, s, b);
     long addressTag = address >> (s + b);
@@ -155,6 +163,9 @@ void doEviction(cacheSet **myCache, long address, long s, long b, long E,
         }
     }
     if (myCache[addressSet]->lines[lruIndex]->dirtyBit == 1) {
+        // If the dirtyBit was originally 1, increment on dirty_evictions
+        // dirty_evictions do not count for the time a dirty line gets evicted,
+        // but the number of dirty bytes IN TOTAL that got evicted.
         dirty_evictions += B;
     }
     myCache[addressSet]->lines[lruIndex]->dirtyBit = 0;
@@ -167,8 +178,8 @@ void doEviction(cacheSet **myCache, long address, long s, long b, long E,
 
 void loadAndStore(cacheSet **myCache, long address, long s, long b, long E,
                   long totalAccesses, long operation) {
-    //"heavy lifting", determine if it is a hit or a miss. If it is a miss, call
-    // a series of functions to handle evictions and dirty bytes.
+    // Core of the code, determine if it is a hit or a miss. And in case it is a
+    // miss, determine if it needs an eviction.
     if (isHit(myCache, address, s, b, E, operation, totalAccesses)) {
         hits += 1;
         return;
@@ -187,6 +198,9 @@ void loadAndStore(cacheSet **myCache, long address, long s, long b, long E,
 }
 
 int main(int argc, char *argv[]) {
+    // Operate parsing; pass on commands to loadAndStore() to process each new
+    // line of operation; free myCache completely in the end; store data into
+    // result struct and call printSummary().
     long opt, help_mode, verbose_mode, s, E, b, S, B;
     verbose_mode = 0;
     help_mode = 0;
@@ -235,6 +249,9 @@ int main(int argc, char *argv[]) {
     // there are a number of S sets
     myCache = buildCache(s, b, E, S);
     long totalAccesses = 0;
+    // totalAccesses keep track of the number of operations in the trace file.
+    // The least recently used line would have the smallest totalAccesses,
+    // meaning it was last accessed earliest in its respective set.
     trace = fopen(traceFile, "r");
     while (fscanf(trace, "%c %lx, %d ", &type, &address, &size) >= 0)
     // get a whole line, cite C library
@@ -246,10 +263,8 @@ int main(int argc, char *argv[]) {
         long oldevictions = evictions;
         long oldDirtyEvictions = dirty_evictions;
         totalAccesses += 1;
-        // printf("totalAccesses, %ld\n", totalAccesses);
         printf("%c %lx, %d ", type, address, size);
         switch (type) {
-        // if it is a load, type is 0; if it is a store, type is 1
         case 'L':
             loadAndStore(myCache, address, s, b, E, totalAccesses, 0);
             break;
@@ -279,6 +294,7 @@ int main(int argc, char *argv[]) {
         printf("\n");
     }
     B = 1 << b;
+    // Note: dirty_bytes, instead of dirty_bits
     for (int i = 0; i < S; i++) {
         for (int j = 0; j < E; j++) {
             if (myCache[i]->lines[j]->dirtyBit == 1)
@@ -289,6 +305,7 @@ int main(int argc, char *argv[]) {
         for (int j = 0; j < E; j++) {
             free(myCache[i]->lines[j]);
         }
+        // free by levels, from innermost to outermost
         free(myCache[i]->lines);
         free(myCache[i]);
     }
