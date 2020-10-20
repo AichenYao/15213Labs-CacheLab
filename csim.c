@@ -7,13 +7,13 @@
 #include <string.h>
 #include <unistd.h>
 
-//This file serves as a cache simulator, counting the number of misses, hits,
-//evictions, dirty_bytes and dierty_evictions caused by a series of load and
-//write instructions. The main function reads from a trace file that specifies
-//the instruction type, address, and size of access; as it parses the commands
-//my cache simulator judges if that would cause a miss, a hit, or an enviction
-//and update the data along the code. In the end, the file displays the result 
-//by calling printSummary().
+// This file serves as a cache simulator, counting the number of misses, hits,
+// evictions, dirty_bytes and dierty_evictions caused by a series of load and
+// write instructions. The main function reads from a trace file that specifies
+// the instruction type, address, and size of access; as it parses the commands
+// my cache simulator judges if that would cause a miss, a hit, or an enviction
+// and update the data along the code. In the end, the file displays the result
+// by calling printSummary().
 typedef struct {
     long validBit;
     long dirtyBit;
