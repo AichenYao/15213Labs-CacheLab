@@ -252,6 +252,10 @@ int main(int argc, char *argv[]) {
         printf("help\n"); //"call help to the system"
         exit(0);
     }
+    if (verbose_mode == 1) {
+        printf("print info\n"); //used to debug earlier
+        exit(0);
+    }
     S = 1 << s;
     // there are a number of S sets
     myCache = buildCache(s, b, E, S);
@@ -264,13 +268,7 @@ int main(int argc, char *argv[]) {
     // get a whole line, cite C library
     { // parse the trace files and get the address in hex to pass
         // on to loadAndStore()
-        long oldHits = hits;
-        long oldMisses = misses;
-        long olddirty_bytes = dirty_bytes;
-        long oldevictions = evictions;
-        long oldDirtyEvictions = dirty_evictions;
         totalAccesses += 1;
-        printf("%c %lx, %d ", type, address, size);
         switch (type) {
         case 'L':
             loadAndStore(myCache, address, s, b, E, totalAccesses, 0);
@@ -281,24 +279,6 @@ int main(int argc, char *argv[]) {
         default:
             break;
         }
-        if (verbose_mode) {
-            if (oldHits != hits) {
-                printf("hit ");
-            }
-            if (oldMisses != misses) {
-                printf("miss ");
-            }
-            if (olddirty_bytes != dirty_bytes) {
-                printf("hit ");
-            }
-            if (oldevictions != evictions) {
-                printf("eviction ");
-            }
-            if (oldDirtyEvictions != dirty_evictions) {
-                printf("dirty_eviction ");
-            }
-        }
-        printf("\n");
     }
     B = 1 << b;
     // Note: dirty_bytes, instead of dirty_bits

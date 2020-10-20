@@ -128,12 +128,12 @@ static void trans_32(size_t M, size_t N, const double A[N][M], double B[M][N],
     // inspired by the code from recitation 5 matrix multiplication
     for (i = 0; i < M; i += b)
         for (j = 0; j < N; j += b)
-            for (tmpi = i; tmpi < i + b; tmpi++)
+            for (tmpi = i; tmpi < i + b; tmpi++) 
                 for (tmpj = j; tmpj < j + b; tmpj++) {
                     if (tmpi != tmpj) {
                         B[tmpi][tmpj] = A[tmpj][tmpi];
                     }
-                }
+                }    
     for (i = 0; i < M; i++) {
         // Entries on the diagonal would cause a double eviction every time
         // so we don't do that in the major loop, we handle it here.
@@ -147,7 +147,7 @@ static void trans_1024(size_t M, size_t N, const double A[N][M], double B[M][N],
     // deal with 32*32 matrix transpose only
     assert(M == 32);
     assert(N == 32);
-    size_t b = 4;
+    size_t b = 256;
     size_t tmpi, tmpj, i, j;
     // inspired by the code from recitation 5 matrix multiplication
     for (i = 0; i < M; i += b)
