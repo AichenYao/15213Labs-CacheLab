@@ -88,7 +88,7 @@ cacheSet **buildCache(long s, long b, long E, long S) {
 long findSet(long address, long s, long b) {
     // Use bit manipulations to locate the set (row) we want to search on
     // in the cache.
-    long mask = (1 << s) - 1;
+    long mask = (1L << s) - 1;
     long base = address >> b;
     return base & mask;
 }
@@ -253,10 +253,10 @@ int main(int argc, char *argv[]) {
         exit(0);
     }
     if (verbose_mode == 1) {
-        printf("print info\n"); //used to debug earlier
+        printf("get info\n"); //"used for debugging earlier"
         exit(0);
     }
-    S = 1 << s;
+    S = 1L << s;
     // there are a number of S sets
     myCache = buildCache(s, b, E, S);
     long totalAccesses = 0;
@@ -269,6 +269,7 @@ int main(int argc, char *argv[]) {
     { // parse the trace files and get the address in hex to pass
         // on to loadAndStore()
         totalAccesses += 1;
+        printf("%c %lx, %d ", type, address, size);
         switch (type) {
         case 'L':
             loadAndStore(myCache, address, s, b, E, totalAccesses, 0);
@@ -280,7 +281,7 @@ int main(int argc, char *argv[]) {
             break;
         }
     }
-    B = 1 << b;
+    B = 1L << b;
     // Note: dirty_bytes, instead of dirty_bits
     for (int i = 0; i < S; i++) {
         for (int j = 0; j < E; j++) {

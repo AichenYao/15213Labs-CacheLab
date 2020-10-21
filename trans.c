@@ -128,12 +128,12 @@ static void trans_32(size_t M, size_t N, const double A[N][M], double B[M][N],
     // inspired by the code from recitation 5 matrix multiplication
     for (i = 0; i < M; i += b)
         for (j = 0; j < N; j += b)
-            for (tmpi = i; tmpi < i + b; tmpi++) 
+            for (tmpi = i; tmpi < i + b; tmpi++)
                 for (tmpj = j; tmpj < j + b; tmpj++) {
                     if (tmpi != tmpj) {
                         B[tmpi][tmpj] = A[tmpj][tmpi];
                     }
-                }    
+                }
     for (i = 0; i < M; i++) {
         // Entries on the diagonal would cause a double eviction every time
         // so we don't do that in the major loop, we handle it here.
@@ -145,25 +145,35 @@ static void trans_32(size_t M, size_t N, const double A[N][M], double B[M][N],
 static void trans_1024(size_t M, size_t N, const double A[N][M], double B[M][N],
                        double tmp[TMPCOUNT]) {
     // deal with 32*32 matrix transpose only
-    assert(M == 32);
-    assert(N == 32);
-    size_t b = 256;
+    assert(M == 1024);
+    assert(N == 1024);
+    size_t b = 8;
     size_t tmpi, tmpj, i, j;
     // inspired by the code from recitation 5 matrix multiplication
     for (i = 0; i < M; i += b)
         for (j = 0; j < N; j += b)
             for (tmpi = i; tmpi < i + b; tmpi++)
-                for (tmpj = 0; tmpj < b; tmpj++) {
-                    tmp[tmpj] = A[tmpi][j + tmpj];
-                    B[j + tmpj][tmpi] = tmp[tmpj];
+                for (tmpj = j; tmpj < j + b; tmpj++) {
+                    B[tmpi][tmpj] = A[tmpj][tmpi];
                 }
-
-    for (i = 0; i < M; i++) {
-        // Entries on the diagonal would cause a double eviction every time
-        // so we don't do that in the major loop, we handle it here.
-        B[i][i] = A[i][i];
-    }
+    // Not too many thrasing would happen in this case since each set now
+    // has 8 lines. So we don't need to handle the diagonals separately.
     assert(is_transpose(M, N, A, B));
+}
+
+static void trans_32Or1024(size_t M, size_t N, const double A[N][M],
+                           double B[M][N], double tmp[TMPCOUNT]) {
+    // works like a wrapper, call trans_32 or trans_1024 based on the inputs
+    // M and N.
+    if ((M == 32) && (N == 32)) {
+        trans_32(M, N, A, B, tmp);
+        return;
+    }
+    if ((M == 1024) && (N == 1024)) {
+        trans_1024(M, N, A, B, tmp);
+        return;
+    }
+    return;
 }
 /**
  * @brief The solution transpose function that will be graded.
@@ -174,9 +184,8 @@ static void trans_1024(size_t M, size_t N, const double A[N][M], double B[M][N],
  */
 static void transpose_submit(size_t M, size_t N, const double A[N][M],
                              double B[M][N], double tmp[TMPCOUNT]) {
-    if ((M == 32) && (N == 32))
-        // call 32*32 helper
-        trans_32(M, N, A, B, tmp);
+    if (((M == 32) && (N == 32)) || ((M == 1024) && (N == 1024)))
+        trans_32Or1024(M, N, A, B, tmp);
     else
         trans_tmp(M, N, A, B, tmp);
 }
